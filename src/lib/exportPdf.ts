@@ -12,12 +12,11 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
   };
 }
 
-function outlineToSvgPath(points: number[][], pdfHeight: number): string {
+function outlineToSvgPath(points: number[][]): string {
   if (points.length === 0) return '';
   const d: string[] = [];
   points.forEach(([x, y], i) => {
-    const py = pdfHeight - y;
-    d.push(i === 0 ? `M ${x.toFixed(2)} ${py.toFixed(2)}` : `L ${x.toFixed(2)} ${py.toFixed(2)}`);
+    d.push(i === 0 ? `M ${x.toFixed(2)} ${y.toFixed(2)}` : `L ${x.toFixed(2)} ${y.toFixed(2)}`);
   });
   d.push('Z');
   return d.join(' ');
@@ -46,7 +45,7 @@ async function saveBlob(blob: Blob, suggestedName: string): Promise<void> {
   if ('share' in navigator) {
     const file = new File([blob], suggestedName, { type: 'application/pdf' });
     if (navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ files: [file], title: suggestedName });
+      await navigator.share({ files: [file] });
       return;
     }
   }
@@ -94,11 +93,15 @@ export async function exportAnnotatedPdf(
       },
     );
 
-    const pathData = outlineToSvgPath(outlinePoints, pdfH);
+    const pathData = outlineToSvgPath(outlinePoints);
     if (!pathData) continue;
 
     const color = hexToRgb(stroke.color);
+    // x:0, y:pdfH places the SVG origin at the top-left of the page.
+    // pdf-lib applies scale(1,-1) internally, so SVG Y (going down) maps correctly to PDF Y (going up).
     page.drawSvgPath(pathData, {
+      x: 0,
+      y: pdfH,
       color: rgb(color.r, color.g, color.b),
       opacity: stroke.opacity,
       blendMode: isHighlighter ? BlendMode.Multiply : BlendMode.Normal,
