@@ -17,7 +17,7 @@ let pdfjsInitialized = false;
 async function getPdfjs() {
   const pdfjsLib = await import('pdfjs-dist');
   if (!pdfjsInitialized) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.mjs';
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `${import.meta.env.BASE_URL}pdfjs/pdf.worker.min.mjs`;
     pdfjsInitialized = true;
   }
   return pdfjsLib;
