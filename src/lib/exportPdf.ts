@@ -22,49 +22,12 @@ function outlineToSvgPath(points: number[][]): string {
   return d.join(' ');
 }
 
-async function saveBlob(blob: Blob, suggestedName: string): Promise<void> {
-  // 1. File System Access API (desktop Chrome/Edge — user picks save location)
-  if ('showSaveFilePicker' in window) {
-    try {
-      const handle = await (window as Window & { showSaveFilePicker: (opts: unknown) => Promise<FileSystemFileHandle> })
-        .showSaveFilePicker({
-          suggestedName,
-          types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }],
-        });
-      const writable = await handle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-      return;
-    } catch (e) {
-      if ((e as Error).name === 'AbortError') return; // user cancelled
-      // fall through to next method
-    }
-  }
-
-  // 2. Web Share API with files (iOS Safari — opens share sheet → "ファイルに保存" etc.)
-  if ('share' in navigator) {
-    const file = new File([blob], suggestedName, { type: 'application/pdf' });
-    if (navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ files: [file] });
-      return;
-    }
-  }
-
-  // 3. Fallback: trigger download (browser chooses Downloads folder)
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = suggestedName;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 10000);
-}
-
-export async function exportAnnotatedPdf(
+// Builds annotated PDF bytes without saving to any destination.
+async function buildAnnotatedPdfBytes(
   originalBytes: ArrayBuffer,
   strokes: Stroke[],
-  fileName: string,
-  pageWidth: number, // display pixel width used when drawing (for coordinate conversion)
-): Promise<void> {
+  pageWidth: number,
+): Promise<ArrayBuffer> {
   const pdfDoc = await PDFDocument.load(originalBytes, { updateMetadata: false });
   const pages = pdfDoc.getPages();
 
@@ -73,10 +36,6 @@ export async function exportAnnotatedPdf(
     if (!page) continue;
 
     const { width: pdfW, height: pdfH } = page.getSize();
-
-    // Convert from display pixel space (0..pageWidth) to PDF point space (0..pdfW).
-    // Strokes are stored in CSS pixel coords; PDF uses points (1pt = 1/72in).
-    // Without this scale, strokes appear at wrong position/size and may fall outside the page.
     const coordScale = pdfW / pageWidth;
 
     const isHighlighter = stroke.tool === 'highlighter';
@@ -98,7 +57,7 @@ export async function exportAnnotatedPdf(
 
     const color = hexToRgb(stroke.color);
     // x:0, y:pdfH places the SVG origin at the top-left of the page.
-    // pdf-lib applies scale(1,-1) internally, so SVG Y (going down) maps correctly to PDF Y (going up).
+    // pdf-lib applies scale(1,-1) internally so SVG Y (going down) maps correctly to PDF Y (going up).
     page.drawSvgPath(pathData, {
       x: 0,
       y: pdfH,
@@ -109,10 +68,73 @@ export async function exportAnnotatedPdf(
   }
 
   const pdfBytes = await pdfDoc.save();
-  // Slice the exact byte range to avoid extra memory past the actual PDF data
-  const pdfBuffer = pdfBytes.buffer.slice(pdfBytes.byteOffset, pdfBytes.byteOffset + pdfBytes.byteLength) as ArrayBuffer;
-  const blob = new Blob([pdfBuffer], { type: 'application/pdf' });
-  const suggestedName = fileName.replace(/\.pdf$/i, '') + '_annotated.pdf';
+  return pdfBytes.buffer.slice(
+    pdfBytes.byteOffset,
+    pdfBytes.byteOffset + pdfBytes.byteLength,
+  ) as ArrayBuffer;
+}
 
-  await saveBlob(blob, suggestedName);
+// Save annotated PDF silently to a file handle (desktop File System Access API).
+export async function saveAnnotatedPdfToHandle(
+  handle: FileSystemFileHandle,
+  originalBytes: ArrayBuffer,
+  strokes: Stroke[],
+  pageWidth: number,
+): Promise<void> {
+  const pdfBuffer = await buildAnnotatedPdfBytes(originalBytes, strokes, pageWidth);
+  const writable = await handle.createWritable();
+  await writable.write(pdfBuffer);
+  await writable.close();
+}
+
+// Save annotated PDF via download link or Web Share (iOS fallback).
+export async function exportAnnotatedPdf(
+  originalBytes: ArrayBuffer,
+  strokes: Stroke[],
+  suggestedName: string,
+  pageWidth: number,
+): Promise<void> {
+  const pdfBuffer = await buildAnnotatedPdfBytes(originalBytes, strokes, pageWidth);
+  const blob = new Blob([pdfBuffer], { type: 'application/pdf' });
+
+  // Web Share API with files (iOS Safari — opens share sheet)
+  if ('share' in navigator) {
+    const file = new File([blob], suggestedName, { type: 'application/pdf' });
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file] });
+      return;
+    }
+  }
+
+  // Fallback: trigger download
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = suggestedName;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+// Attempt to save via showSaveFilePicker and return the obtained handle for future silent saves.
+// Returns null if the API is unavailable or the user cancels.
+export async function saveWithFilePicker(
+  originalBytes: ArrayBuffer,
+  strokes: Stroke[],
+  suggestedName: string,
+  pageWidth: number,
+): Promise<FileSystemFileHandle | null> {
+  if (!('showSaveFilePicker' in window)) return null;
+  try {
+    const handle = await (window as Window & {
+      showSaveFilePicker: (opts: unknown) => Promise<FileSystemFileHandle>;
+    }).showSaveFilePicker({
+      suggestedName,
+      types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }],
+    });
+    await saveAnnotatedPdfToHandle(handle, originalBytes, strokes, pageWidth);
+    return handle;
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') return null;
+    throw e;
+  }
 }

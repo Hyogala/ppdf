@@ -1,17 +1,24 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import type { PDFDocumentState } from '../../types/pdf';
 import type { Stroke, ToolConfig } from '../../types/annotation';
+import type { SaveMode } from '../SaveModeDialog/SaveModeDialog';
 import { useAnnotations } from '../../hooks/useAnnotations';
 import { useGestures, type ViewTransform } from '../../hooks/useGestures';
 import { useAutoSave } from '../../hooks/useAutoSave';
 import { loadAnnotations, loadDocument } from '../../lib/storage';
-import { exportAnnotatedPdf } from '../../lib/exportPdf';
+import {
+  saveAnnotatedPdfToHandle,
+  saveWithFilePicker,
+  exportAnnotatedPdf,
+} from '../../lib/exportPdf';
 import { PageStack } from './PageStack';
 import { Toolbar } from '../Toolbar/Toolbar';
 import './Viewer.css';
 
 interface Props {
   pdfState: PDFDocumentState;
+  saveMode: SaveMode;
+  initialFileHandle: FileSystemFileHandle | null;
   onClose: () => void;
 }
 
@@ -26,20 +33,31 @@ function getPageWidth() {
   return Math.min(window.innerWidth - 24, 800);
 }
 
-export function Viewer({ pdfState, onClose }: Props) {
+export function Viewer({ pdfState, saveMode, initialFileHandle, onClose }: Props) {
   const [tool, setTool] = useState<ToolConfig>(DEFAULT_TOOL);
   const [interactionMode, setInteractionMode] = useState<'draw' | 'navigate'>('draw');
   const [saveStatus, setSaveStatus] = useState<'saved' | 'dirty' | 'saving'>('saved');
   const [transform, setTransform] = useState<ViewTransform>({ scale: 1, translateX: 0, translateY: 0 });
   const [pageWidth, setPageWidth] = useState(getPageWidth);
-  // renderScale is debounced: only updates 600ms after zoom stops
-  // This triggers high-quality re-render of vector PDF content at the new zoom level
   const [renderScale, setRenderScale] = useState(1);
+  const [fileHandle, setFileHandle] = useState<FileSystemFileHandle | null>(initialFileHandle);
+
   const transformRef = useRef(transform);
   transformRef.current = transform;
+  const pageWidthRef = useRef(pageWidth);
+  pageWidthRef.current = pageWidth;
+  const originalBytesRef = useRef<ArrayBuffer | null>(null);
 
   const annotations = useAnnotations();
   const versionRef = useRef(0);
+
+  // Keep original bytes in memory for fast saves
+  useEffect(() => {
+    if (!pdfState.hash) return;
+    loadDocument(pdfState.hash).then(stored => {
+      if (stored) originalBytesRef.current = stored.bytes;
+    });
+  }, [pdfState.hash]);
 
   // Responsive page width
   useEffect(() => {
@@ -52,7 +70,7 @@ export function Viewer({ pdfState, onClose }: Props) {
     };
   }, []);
 
-  // Debounce render scale: re-render PDF at higher resolution after zoom settles
+  // Debounce render scale
   useEffect(() => {
     const t = setTimeout(() => setRenderScale(transform.scale), 600);
     return () => clearTimeout(t);
@@ -75,7 +93,28 @@ export function Viewer({ pdfState, onClose }: Props) {
     setSaveStatus('saved');
   }, [annotations]);
 
-  useAutoSave(pdfState.hash, annotations.strokes, annotations.isDirty, wrappedMarkSaved, versionRef);
+  // File-save ref: called by useAutoSave every 30s when a file handle is available
+  const fileSaveRef = useRef<(() => Promise<void>) | null>(null);
+  const strokesRef = useRef(annotations.strokes);
+  strokesRef.current = annotations.strokes;
+  const fileHandleRef = useRef(fileHandle);
+  fileHandleRef.current = fileHandle;
+
+  useEffect(() => {
+    fileSaveRef.current = fileHandleRef.current
+      ? async () => {
+          if (!originalBytesRef.current || !fileHandleRef.current) return;
+          await saveAnnotatedPdfToHandle(
+            fileHandleRef.current,
+            originalBytesRef.current,
+            strokesRef.current,
+            pageWidthRef.current,
+          );
+        }
+      : null;
+  }, [fileHandle]);
+
+  useAutoSave(pdfState.hash, annotations.strokes, annotations.isDirty, wrappedMarkSaved, versionRef, fileSaveRef);
 
   useEffect(() => {
     setSaveStatus(annotations.isDirty ? 'dirty' : 'saved');
@@ -90,21 +129,67 @@ export function Viewer({ pdfState, onClose }: Props) {
     annotations.eraseAt(pageIndex, x, y, tool.thickness * 3);
   }, [annotations, tool.thickness]);
 
-  const handleExport = useCallback(async () => {
-    const stored = await loadDocument(pdfState.hash);
-    if (!stored) return;
+  const handleSave = useCallback(async () => {
+    if (!originalBytesRef.current) return;
     setSaveStatus('saving');
     try {
-      await exportAnnotatedPdf(stored.bytes, annotations.strokes, pdfState.fileName, pageWidth);
+      const bytes = originalBytesRef.current;
+      const strokes = strokesRef.current;
+      const pw = pageWidthRef.current;
+      const currentHandle = fileHandleRef.current;
+
+      if (currentHandle) {
+        // Silent overwrite via existing file handle
+        await saveAnnotatedPdfToHandle(currentHandle, bytes, strokes, pw);
+      } else if ('showSaveFilePicker' in window) {
+        // First save on desktop: show picker, then store handle for silent future saves
+        const suggestedName = saveMode === 'overwrite'
+          ? pdfState.fileName
+          : pdfState.fileName.replace(/\.pdf$/i, '') + '_annotated.pdf';
+        const newHandle = await saveWithFilePicker(bytes, strokes, suggestedName, pw);
+        if (newHandle) setFileHandle(newHandle);
+        else { setSaveStatus(annotations.isDirty ? 'dirty' : 'saved'); return; }
+      } else {
+        // iOS: share sheet
+        const suggestedName = saveMode === 'overwrite'
+          ? pdfState.fileName
+          : pdfState.fileName.replace(/\.pdf$/i, '') + '_annotated.pdf';
+        await exportAnnotatedPdf(bytes, strokes, suggestedName, pw);
+      }
+
+      annotations.markSaved();
+      setSaveStatus('saved');
     } catch (e) {
-      alert(`エクスポートに失敗しました: ${String(e)}`);
-    } finally {
+      alert(`保存に失敗しました: ${String(e)}`);
       setSaveStatus(annotations.isDirty ? 'dirty' : 'saved');
     }
-  }, [pdfState, annotations.strokes, annotations.isDirty, pageWidth]);
+  }, [saveMode, pdfState.fileName, annotations]);
+
+  const isDrawMode = interactionMode === 'draw';
 
   return (
     <div className="viewer">
+      {/* Floating draw/navigate toggle — top left */}
+      <button
+        className={`viewer__mode-btn${!isDrawMode ? ' viewer__mode-btn--active' : ''}`}
+        onClick={() => setInteractionMode(isDrawMode ? 'navigate' : 'draw')}
+        title={isDrawMode ? 'スクロールモードへ' : '描画モードへ'}
+      >
+        {isDrawMode ? '✍️' : '🖐️'}
+      </button>
+
+      {/* Floating save button — top right */}
+      <button
+        className={`viewer__save-btn${saveStatus === 'saving' ? ' viewer__save-btn--saving' : ''}`}
+        onClick={handleSave}
+        disabled={saveStatus === 'saving'}
+      >
+        <span className="viewer__save-dot">
+          {saveStatus === 'saving' ? '…' : saveStatus === 'dirty' ? '●' : '✓'}
+        </span>
+        保存
+      </button>
+
       <div
         className="viewer__canvas-area"
         onPointerDown={onPointerDown}
@@ -139,16 +224,12 @@ export function Viewer({ pdfState, onClose }: Props) {
       <Toolbar
         tool={tool}
         onChange={setTool}
-        interactionMode={interactionMode}
-        onModeChange={setInteractionMode}
         canUndo={annotations.canUndo}
         canRedo={annotations.canRedo}
         onUndo={annotations.undo}
         onRedo={annotations.redo}
         onClearAll={annotations.clearAll}
-        onExport={handleExport}
         onClose={onClose}
-        saveStatus={saveStatus}
       />
 
       <div className="viewer__filename">{pdfState.fileName}</div>

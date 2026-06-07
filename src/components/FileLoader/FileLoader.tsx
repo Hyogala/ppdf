@@ -1,12 +1,18 @@
 import { useRef, useState, useEffect } from 'react';
-import { getRecentDocs } from '../../lib/storage';
-import { loadDocument } from '../../lib/storage';
+import { getRecentDocs, loadDocument } from '../../lib/storage';
 import type { RecentDoc } from '../../types/storage';
 import './FileLoader.css';
 
 interface Props {
-  onLoad: (bytes: ArrayBuffer, fileName: string) => void;
+  onLoad: (bytes: ArrayBuffer, fileName: string, fileHandle?: FileSystemFileHandle) => void;
 }
+
+type ShowOpenFilePickerFn = (opts?: {
+  types?: { description?: string; accept: Record<string, string[]> }[];
+  multiple?: boolean;
+}) => Promise<FileSystemFileHandle[]>;
+
+const hasFilePicker = typeof window !== 'undefined' && 'showOpenFilePicker' in window;
 
 export function FileLoader({ onLoad }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -17,34 +23,73 @@ export function FileLoader({ onLoad }: Props) {
     getRecentDocs().then(setRecentDocs);
   }, []);
 
-  const handleFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = e => {
-      if (e.target?.result instanceof ArrayBuffer) {
-        onLoad(e.target.result, file.name);
+  // Try opening via File System Access API to get a writable file handle.
+  const openWithPicker = async () => {
+    if (hasFilePicker) {
+      try {
+        const [handle] = await (window as unknown as { showOpenFilePicker: ShowOpenFilePickerFn })
+          .showOpenFilePicker({
+            types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }],
+            multiple: false,
+          });
+        // Request readwrite permission so we can silently save later
+        const perm = await (handle as FileSystemFileHandle & {
+          requestPermission: (d: { mode: string }) => Promise<string>;
+        }).requestPermission({ mode: 'readwrite' });
+        const file = await handle.getFile();
+        const bytes = await file.arrayBuffer();
+        onLoad(bytes, file.name, perm === 'granted' ? handle : undefined);
+        return;
+      } catch (e) {
+        if ((e as Error).name === 'AbortError') return;
+        // Fall through to input element
       }
-    };
-    reader.readAsArrayBuffer(file);
+    }
+    inputRef.current?.click();
+  };
+
+  const handleFileObject = async (file: File) => {
+    const bytes = await file.arrayBuffer();
+    onLoad(bytes, file.name);
   };
 
   const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) handleFile(file);
+    if (file) handleFileObject(file);
     e.target.value = '';
   };
 
-  const onDrop = (e: React.DragEvent) => {
+  const onDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setDragging(false);
+    const item = e.dataTransfer.items?.[0];
     const file = e.dataTransfer.files?.[0];
-    if (file?.type === 'application/pdf') handleFile(file);
+    if (!file || file.type !== 'application/pdf') return;
+
+    // Try to get a writable file handle from the drop
+    if (item && 'getAsFileSystemHandle' in item) {
+      try {
+        const handle = await (item as DataTransferItem & {
+          getAsFileSystemHandle: () => Promise<FileSystemFileHandle>;
+        }).getAsFileSystemHandle();
+        if (handle && handle.kind === 'file') {
+          const perm = await (handle as FileSystemFileHandle & {
+            requestPermission: (d: { mode: string }) => Promise<string>;
+          }).requestPermission({ mode: 'readwrite' });
+          const bytes = await file.arrayBuffer();
+          onLoad(bytes, file.name, perm === 'granted' ? handle : undefined);
+          return;
+        }
+      } catch {
+        // Fall through
+      }
+    }
+    handleFileObject(file);
   };
 
   const openRecent = async (doc: RecentDoc) => {
     const stored = await loadDocument(doc.hash);
-    if (stored) {
-      onLoad(stored.bytes, stored.fileName);
-    }
+    if (stored) onLoad(stored.bytes, stored.fileName);
   };
 
   return (
@@ -58,7 +103,7 @@ export function FileLoader({ onLoad }: Props) {
           onDragOver={e => { e.preventDefault(); setDragging(true); }}
           onDragLeave={() => setDragging(false)}
           onDrop={onDrop}
-          onClick={() => inputRef.current?.click()}
+          onClick={openWithPicker}
         >
           <span className="file-loader__drop-icon">📂</span>
           <span>PDFを開く</span>

@@ -10,6 +10,9 @@ export function useAutoSave(
   isDirty: boolean,
   markSaved: () => void,
   version: React.MutableRefObject<number>,
+  // Optional: called every 30s to also save the annotated PDF to a file handle.
+  // Use a ref so callers can update the function without re-mounting the effect.
+  fileSaveRef?: React.MutableRefObject<(() => Promise<void>) | null>,
 ) {
   const strokesRef = useRef(strokes);
   const isDirtyRef = useRef(isDirty);
@@ -17,16 +20,35 @@ export function useAutoSave(
   isDirtyRef.current = isDirty;
 
   const doSave = useRef(async () => {
-    if (!hash || !isDirtyRef.current) return;
-    version.current += 1;
-    await saveAnnotations(hash, strokesRef.current, version.current);
-    markSaved();
+    if (!hash) return;
+    if (isDirtyRef.current) {
+      version.current += 1;
+      await saveAnnotations(hash, strokesRef.current, version.current);
+      markSaved();
+    }
+    // File-based save runs alongside IndexedDB save (silent, best-effort)
+    if (fileSaveRef?.current) {
+      try {
+        await fileSaveRef.current();
+      } catch {
+        // Silently ignore file save errors during auto-save
+      }
+    }
   });
   doSave.current = async () => {
-    if (!hash || !isDirtyRef.current) return;
-    version.current += 1;
-    await saveAnnotations(hash, strokesRef.current, version.current);
-    markSaved();
+    if (!hash) return;
+    if (isDirtyRef.current) {
+      version.current += 1;
+      await saveAnnotations(hash, strokesRef.current, version.current);
+      markSaved();
+    }
+    if (fileSaveRef?.current) {
+      try {
+        await fileSaveRef.current();
+      } catch {
+        // Silently ignore
+      }
+    }
   };
 
   useEffect(() => {

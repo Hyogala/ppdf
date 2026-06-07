@@ -17,18 +17,92 @@
   display: inline-block;
 }
 
+/* ── Floating draw/navigate toggle — top left ── */
+.viewer__mode-btn {
+  position: fixed;
+  top: max(env(safe-area-inset-top), 10px);
+  left: max(env(safe-area-inset-left), 10px);
+  z-index: 120;
+  width: 48px;
+  height: 48px;
+  border: none;
+  border-radius: 14px;
+  background: rgba(20,20,40,0.88);
+  backdrop-filter: blur(12px);
+  color: #fff;
+  font-size: 1.3rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.12s;
+}
+.viewer__mode-btn:active,
+.viewer__mode-btn--active {
+  background: rgba(249,115,22,0.7);
+}
+
+/* ── Floating save button — top right ── */
+.viewer__save-btn {
+  position: fixed;
+  top: max(env(safe-area-inset-top), 10px);
+  right: max(env(safe-area-inset-right), 10px);
+  z-index: 120;
+  min-width: 72px;
+  height: 48px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 14px;
+  background: rgba(20,20,40,0.88);
+  backdrop-filter: blur(12px);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-family: -apple-system, sans-serif;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.12s;
+}
+.viewer__save-btn:active {
+  background: rgba(249,115,22,0.7);
+}
+.viewer__save-btn--saving {
+  opacity: 0.6;
+}
+.viewer__save-btn:disabled {
+  pointer-events: none;
+}
+
+.viewer__save-dot {
+  font-size: 0.65rem;
+  color: rgba(255,255,255,0.55);
+  line-height: 1;
+}
+
+/* Filename centered between the two floating buttons */
 .viewer__filename {
   position: fixed;
-  top: max(env(safe-area-inset-top), 12px);
-  left: 12px;
-  color: rgba(255,255,255,0.45);
+  top: max(env(safe-area-inset-top), 10px);
+  left: 68px;
+  right: 92px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,0.38);
   font-size: 0.72rem;
   font-family: -apple-system, sans-serif;
   pointer-events: none;
-  max-width: 55vw;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  z-index: 119;
 }
 
 /* On narrow screens, keep content above bottom toolbar */

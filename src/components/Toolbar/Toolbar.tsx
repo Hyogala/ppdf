@@ -13,16 +13,12 @@ const THICKNESSES = [2, 4, 8, 16, 24];
 interface Props {
   tool: ToolConfig;
   onChange: (t: ToolConfig) => void;
-  interactionMode: 'draw' | 'navigate';
-  onModeChange: (m: 'draw' | 'navigate') => void;
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
   onClearAll: () => void;
-  onExport: () => void;
   onClose: () => void;
-  saveStatus: 'saved' | 'dirty' | 'saving';
 }
 
 const TOOL_LABELS: Record<ToolType, string> = {
@@ -33,8 +29,8 @@ const TOOL_LABELS: Record<ToolType, string> = {
 };
 
 export function Toolbar({
-  tool, onChange, interactionMode, onModeChange,
-  canUndo, canRedo, onUndo, onRedo, onClearAll, onExport, onClose, saveStatus,
+  tool, onChange,
+  canUndo, canRedo, onUndo, onRedo, onClearAll, onClose,
 }: Props) {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showThickness, setShowThickness] = useState(false);
@@ -46,8 +42,6 @@ export function Toolbar({
     setShowColorPicker(false);
     setShowThickness(false);
   };
-
-  const isDrawMode = interactionMode === 'draw';
 
   return (
     <>
@@ -84,17 +78,6 @@ export function Toolbar({
       )}
 
       <div className="toolbar">
-        {/* Mode toggle */}
-        <button
-          className={`toolbar__btn${!isDrawMode ? ' toolbar__btn--active' : ''}`}
-          onClick={() => onModeChange(isDrawMode ? 'navigate' : 'draw')}
-          title={isDrawMode ? 'スクロールモードへ' : '描画モードへ'}
-        >
-          {isDrawMode ? '✍️' : '🖐️'}
-        </button>
-
-        <div className="toolbar__divider" />
-
         {/* Draw tools */}
         {(['pen', 'highlighter', 'pencil', 'eraser'] as ToolType[]).map(t => (
           <button
@@ -151,13 +134,7 @@ export function Toolbar({
           <button className="toolbar__btn" onClick={() => setShowClearConfirm(true)} title="全消去">🗑️</button>
         )}
 
-        <button className="toolbar__btn" onClick={onExport} title="PDF書き出し">⬇️</button>
         <button className="toolbar__btn" onClick={onClose} title="閉じる">✕</button>
-
-        {/* Save status */}
-        <div className="toolbar__status">
-          {saveStatus === 'saving' ? '保存中' : saveStatus === 'dirty' ? '●' : '✓'}
-        </div>
       </div>
     </>
   );
