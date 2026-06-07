@@ -96,10 +96,12 @@ export function Viewer({ pdfState, onClose }: Props) {
     setSaveStatus('saving');
     try {
       await exportAnnotatedPdf(stored.bytes, annotations.strokes, pdfState.fileName, pageWidth);
+    } catch (e) {
+      alert(`エクスポートに失敗しました: ${String(e)}`);
     } finally {
       setSaveStatus(annotations.isDirty ? 'dirty' : 'saved');
     }
-  }, [pdfState, annotations.strokes, annotations.isDirty]);
+  }, [pdfState, annotations.strokes, annotations.isDirty, pageWidth]);
 
   return (
     <div className="viewer">

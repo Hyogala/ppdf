@@ -106,7 +106,9 @@ export async function exportAnnotatedPdf(
   }
 
   const pdfBytes = await pdfDoc.save();
-  const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+  // Slice the exact byte range to avoid extra memory past the actual PDF data
+  const pdfBuffer = pdfBytes.buffer.slice(pdfBytes.byteOffset, pdfBytes.byteOffset + pdfBytes.byteLength) as ArrayBuffer;
+  const blob = new Blob([pdfBuffer], { type: 'application/pdf' });
   const suggestedName = fileName.replace(/\.pdf$/i, '') + '_annotated.pdf';
 
   await saveBlob(blob, suggestedName);
