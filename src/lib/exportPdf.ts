@@ -64,24 +64,29 @@ export async function exportAnnotatedPdf(
   originalBytes: ArrayBuffer,
   strokes: Stroke[],
   fileName: string,
+  pageWidth: number, // display pixel width used when drawing (for coordinate conversion)
 ): Promise<void> {
-  // Load in chunks to avoid blocking main thread on large files
-  const pdfDoc = await PDFDocument.load(originalBytes, {
-    updateMetadata: false,
-  });
+  const pdfDoc = await PDFDocument.load(originalBytes, { updateMetadata: false });
   const pages = pdfDoc.getPages();
 
   for (const stroke of strokes) {
     const page = pages[stroke.pageIndex];
     if (!page) continue;
 
-    const { height: pdfH } = page.getSize();
+    const { width: pdfW, height: pdfH } = page.getSize();
+
+    // Convert from display pixel space (0..pageWidth) to PDF point space (0..pdfW).
+    // Strokes are stored in CSS pixel coords; PDF uses points (1pt = 1/72in).
+    // Without this scale, strokes appear at wrong position/size and may fall outside the page.
+    const coordScale = pdfW / pageWidth;
+
     const isHighlighter = stroke.tool === 'highlighter';
+    const baseSize = isHighlighter ? stroke.thickness * 3 : stroke.thickness;
 
     const outlinePoints = getStroke(
-      stroke.points.map(p => [p.x, p.y, p.pressure]),
+      stroke.points.map(p => [p.x * coordScale, p.y * coordScale, p.pressure]),
       {
-        size: isHighlighter ? stroke.thickness * 3 : stroke.thickness,
+        size: baseSize * coordScale,
         thinning: isHighlighter ? 0 : stroke.tool === 'pencil' ? 0.3 : 0.5,
         smoothing: 0.5,
         streamline: 0.5,

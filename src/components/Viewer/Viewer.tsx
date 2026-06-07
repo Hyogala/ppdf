@@ -95,7 +95,7 @@ export function Viewer({ pdfState, onClose }: Props) {
     if (!stored) return;
     setSaveStatus('saving');
     try {
-      await exportAnnotatedPdf(stored.bytes, annotations.strokes, pdfState.fileName);
+      await exportAnnotatedPdf(stored.bytes, annotations.strokes, pdfState.fileName, pageWidth);
     } finally {
       setSaveStatus(annotations.isDirty ? 'dirty' : 'saved');
     }
