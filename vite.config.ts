@@ -36,7 +36,7 @@ export default defineConfig({
       },
     }),
   ],
-  optimizeDeps: {
-    exclude: ['pdfjs-dist'],
+  build: {
+    target: 'es2019',
   },
 });

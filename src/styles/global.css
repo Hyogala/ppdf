@@ -2,22 +2,33 @@
   box-sizing: border-box;
 }
 
-html, body, #root {
+html {
   margin: 0;
   padding: 0;
   width: 100%;
   height: 100%;
   overflow: hidden;
+  /* iOS Safari: use available height excluding browser chrome */
+  height: -webkit-fill-available;
 }
 
 body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  height: -webkit-fill-available;
+  overflow: hidden;
   background: #1a1a2e;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overscroll-behavior: none;
-  /* prevent iOS bounce */
-  position: fixed;
+}
+
+#root {
   width: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 
 button {

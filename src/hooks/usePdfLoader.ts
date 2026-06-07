@@ -1,10 +1,7 @@
 import { useState, useCallback } from 'react';
-import * as pdfjsLib from 'pdfjs-dist';
 import type { PDFDocumentState } from '../types/pdf';
 import { computePdfHash } from '../lib/pdfHash';
 import { saveDocument } from '../lib/storage';
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.mjs';
 
 const initialState: PDFDocumentState = {
   proxy: null,
@@ -15,6 +12,17 @@ const initialState: PDFDocumentState = {
   loadError: null,
 };
 
+let pdfjsInitialized = false;
+
+async function getPdfjs() {
+  const pdfjsLib = await import('pdfjs-dist');
+  if (!pdfjsInitialized) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.mjs';
+    pdfjsInitialized = true;
+  }
+  return pdfjsLib;
+}
+
 export function usePdfLoader() {
   const [state, setState] = useState<PDFDocumentState>(initialState);
   const [loading, setLoading] = useState(false);
@@ -23,7 +31,11 @@ export function usePdfLoader() {
     setLoading(true);
     setState(initialState);
     try {
-      const hash = await computePdfHash(bytes);
+      const [hash, pdfjsLib] = await Promise.all([
+        computePdfHash(bytes),
+        getPdfjs(),
+      ]);
+
       const copy = bytes.slice(0);
       const proxy = await pdfjsLib.getDocument({ data: copy }).promise;
 
