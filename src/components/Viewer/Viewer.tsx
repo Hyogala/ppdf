@@ -1,16 +1,14 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import type { PDFDocumentState } from '../../types/pdf';
 import type { Stroke, ToolConfig } from '../../types/annotation';
 import { useAnnotations } from '../../hooks/useAnnotations';
 import { useGestures, type ViewTransform } from '../../hooks/useGestures';
 import { useAutoSave } from '../../hooks/useAutoSave';
-import { loadAnnotations } from '../../lib/storage';
+import { loadAnnotations, loadDocument } from '../../lib/storage';
 import { exportAnnotatedPdf } from '../../lib/exportPdf';
-import { loadDocument } from '../../lib/storage';
 import { PageStack } from './PageStack';
 import { Toolbar } from '../Toolbar/Toolbar';
 import './Viewer.css';
-import { useEffect } from 'react';
 
 interface Props {
   pdfState: PDFDocumentState;
@@ -24,17 +22,33 @@ const DEFAULT_TOOL: ToolConfig = {
   opacity: 1.0,
 };
 
+function getPageWidth() {
+  // Fit page to viewport width with padding, max 800px
+  return Math.min(window.innerWidth - 24, 800);
+}
+
 export function Viewer({ pdfState, onClose }: Props) {
   const [tool, setTool] = useState<ToolConfig>(DEFAULT_TOOL);
   const [interactionMode, setInteractionMode] = useState<'draw' | 'navigate'>('draw');
   const [saveStatus, setSaveStatus] = useState<'saved' | 'dirty' | 'saving'>('saved');
   const [transform, setTransform] = useState<ViewTransform>({ scale: 1, translateX: 0, translateY: 0 });
+  const [pageWidth, setPageWidth] = useState(getPageWidth);
   const transformRef = useRef(transform);
   transformRef.current = transform;
-  const isPinchinRef = useRef(false);
 
   const annotations = useAnnotations();
   const versionRef = useRef(0);
+
+  // Responsive page width on resize/orientation change
+  useEffect(() => {
+    const onResize = () => setPageWidth(getPageWidth());
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
+    };
+  }, []);
 
   // Load saved annotations on mount
   useEffect(() => {
@@ -60,7 +74,11 @@ export function Viewer({ pdfState, onClose }: Props) {
   }, [annotations.isDirty]);
 
   const getTransform = useCallback(() => transformRef.current, []);
-  const gestures = useGestures(getTransform, setTransform);
+  const { onPointerDown, onPointerMove, onPointerUp, isPinchingRef } = useGestures(
+    getTransform,
+    setTransform,
+    interactionMode,
+  );
 
   const handleEraseAt = useCallback((pageIndex: number, x: number, y: number) => {
     const radius = tool.thickness * 3;
@@ -78,18 +96,15 @@ export function Viewer({ pdfState, onClose }: Props) {
     }
   }, [pdfState, annotations.strokes, annotations.isDirty]);
 
-  const isPinchingProxy = useRef({ current: isPinchinRef.current });
-
   return (
     <div className="viewer">
-      {/* Gesture overlay for navigate mode */}
+      {/* Gesture + drawing area — gesture handlers always active */}
       <div
         className="viewer__canvas-area"
-        style={{ touchAction: interactionMode === 'navigate' ? 'none' : 'none' }}
-        onPointerDown={interactionMode === 'navigate' ? gestures.onPointerDown : undefined}
-        onPointerMove={interactionMode === 'navigate' ? gestures.onPointerMove : undefined}
-        onPointerUp={interactionMode === 'navigate' ? gestures.onPointerUp : undefined}
-        onPointerCancel={interactionMode === 'navigate' ? gestures.onPointerUp : undefined}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
       >
         <div
           className="viewer__transform"
@@ -105,7 +120,8 @@ export function Viewer({ pdfState, onClose }: Props) {
               strokes={annotations.strokes}
               tool={tool}
               interactionMode={interactionMode}
-              isPinching={isPinchingProxy as unknown as React.MutableRefObject<{ current: boolean }>}
+              isPinchingRef={isPinchingRef}
+              pageWidth={pageWidth}
               onStrokeComplete={(s: Stroke) => annotations.addStroke(s)}
               onEraseAt={handleEraseAt}
             />

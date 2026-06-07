@@ -19,14 +19,21 @@
 
 .viewer__filename {
   position: fixed;
-  top: env(safe-area-inset-top, 12px);
+  top: max(env(safe-area-inset-top), 12px);
   left: 12px;
-  color: rgba(255,255,255,0.5);
-  font-size: 0.75rem;
+  color: rgba(255,255,255,0.45);
+  font-size: 0.72rem;
   font-family: -apple-system, sans-serif;
   pointer-events: none;
-  max-width: 60vw;
+  max-width: 55vw;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* On narrow screens, keep content above bottom toolbar */
+@media (max-width: 599px) {
+  .viewer__canvas-area {
+    height: calc(100% - 64px - max(0px, env(safe-area-inset-bottom)));
+  }
 }

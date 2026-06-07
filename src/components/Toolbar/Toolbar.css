@@ -1,65 +1,4 @@
-.toolbar {
-  position: fixed;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  pointer-events: none;
-  padding-right: env(safe-area-inset-right, 0px);
-}
-
-.toolbar__handle {
-  pointer-events: all;
-  background: rgba(26, 26, 46, 0.95);
-  border-radius: 12px 0 0 12px;
-  padding: 10px 6px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255,255,255,0.6);
-  font-size: 0.7rem;
-  min-height: 44px;
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-right: none;
-}
-
-.toolbar__body {
-  pointer-events: all;
-  background: rgba(26, 26, 46, 0.95);
-  backdrop-filter: blur(12px);
-  border-radius: 0 0 0 16px;
-  border: 1px solid rgba(255,255,255,0.08);
-  border-right: none;
-  border-top: none;
-  padding: 8px 6px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-height: 90dvh;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-.toolbar--expanded .toolbar__handle {
-  border-radius: 0;
-}
-
-.toolbar__section {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
-}
-
-.toolbar__section:last-of-type {
-  border-bottom: none;
-}
-
+/* ── Common button styles ── */
 .toolbar__btn {
   min-width: 44px;
   min-height: 44px;
@@ -72,76 +11,195 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s;
+  transition: background 0.12s;
   -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
 }
-
 .toolbar__btn:active,
 .toolbar__btn--active {
-  background: rgba(249,115,22,0.6);
+  background: rgba(249,115,22,0.65);
 }
-
 .toolbar__btn:disabled {
   opacity: 0.3;
   pointer-events: none;
 }
-
 .toolbar__btn--danger {
   background: rgba(239,68,68,0.4);
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 0.7rem;
+  font-weight: 700;
   color: #fca5a5;
+  min-width: 52px;
 }
 
-.toolbar__colors {
-  flex-direction: column;
-  gap: 4px;
-}
-
-.toolbar__color {
-  width: 28px;
-  height: 28px;
+.toolbar__color-preview {
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
-  border: 2px solid transparent;
   cursor: pointer;
   flex-shrink: 0;
-  transition: transform 0.15s, border-color 0.15s;
+  transition: transform 0.12s;
   -webkit-tap-highlight-color: transparent;
   align-self: center;
 }
+.toolbar__color-preview:active,
+.toolbar__color-preview.toolbar__btn--active {
+  transform: scale(1.2);
+  outline: 2px solid #f97316;
+  outline-offset: 2px;
+}
 
+.toolbar__divider {
+  background: rgba(255,255,255,0.1);
+  flex-shrink: 0;
+}
+
+.toolbar__status {
+  font-size: 0.65rem;
+  color: rgba(255,255,255,0.4);
+  text-align: center;
+  flex-shrink: 0;
+}
+
+/* ── Popups (color/thickness) ── */
+.toolbar__popup {
+  position: fixed;
+  z-index: 110;
+  background: rgba(20,20,40,0.97);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 16px;
+  padding: 10px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.toolbar__color {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.12s;
+  -webkit-tap-highlight-color: transparent;
+}
 .toolbar__color--active,
 .toolbar__color:active {
-  border-color: #f97316;
-  transform: scale(1.2);
+  transform: scale(1.25);
+  outline: 2px solid #f97316;
+  outline-offset: 2px;
 }
 
-.toolbar__thicknesses {
-  flex-direction: column;
-  gap: 4px;
-}
-
-.toolbar__thickness {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
+.toolbar__thickness-btn {
+  width: 40px;
+  height: 40px;
   border: none;
+  border-radius: 10px;
   background: rgba(255,255,255,0.08);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  align-self: center;
+}
+.toolbar__thickness-btn--active {
+  background: rgba(249,115,22,0.5);
 }
 
-.toolbar__thickness--active {
-  background: rgba(249,115,22,0.4);
+
+/* ════════════════════════════════════════
+   WIDE SCREENS: right-side vertical toolbar
+   ════════════════════════════════════════ */
+@media (min-width: 600px) {
+  .toolbar {
+    position: fixed;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 8px;
+    padding-right: max(8px, env(safe-area-inset-right));
+    background: rgba(20,20,40,0.92);
+    backdrop-filter: blur(14px);
+    border-radius: 16px 0 0 16px;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-right: none;
+    max-height: 92dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .toolbar__divider {
+    width: 28px;
+    height: 1px;
+    margin: 2px 0;
+  }
+
+  /* Popups appear to the left of the toolbar */
+  .toolbar__popup {
+    right: 60px;
+    flex-direction: column;
+    width: 52px;
+  }
+  .toolbar__popup--colors {
+    bottom: 120px;
+  }
+  .toolbar__popup--thickness {
+    bottom: 80px;
+  }
 }
 
-.toolbar__status {
-  font-size: 0.6rem;
-  color: rgba(255,255,255,0.35);
-  text-align: center;
-  padding-top: 2px;
+
+/* ════════════════════════════════════════
+   NARROW SCREENS (iPhone portrait): bottom toolbar
+   ════════════════════════════════════════ */
+@media (max-width: 599px) {
+  .toolbar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 2px;
+    padding: 8px 12px;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    background: rgba(20,20,40,0.95);
+    backdrop-filter: blur(14px);
+    border-top: 1px solid rgba(255,255,255,0.08);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    /* Hide scrollbar */
+    scrollbar-width: none;
+  }
+  .toolbar::-webkit-scrollbar { display: none; }
+
+  .toolbar__divider {
+    width: 1px;
+    height: 28px;
+    margin: 0 4px;
+  }
+
+  .toolbar__btn {
+    min-width: 40px;
+    min-height: 40px;
+    border-radius: 8px;
+  }
+
+  /* Popups appear above the toolbar */
+  .toolbar__popup {
+    bottom: 80px;
+    left: 12px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    max-width: calc(100vw - 24px);
+  }
+  .toolbar__popup--thickness {
+    width: auto;
+  }
 }

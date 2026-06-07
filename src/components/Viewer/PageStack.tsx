@@ -4,8 +4,7 @@ import type { Stroke, ToolConfig } from '../../types/annotation';
 import { PdfCanvas } from './PdfCanvas';
 import { AnnotationCanvas } from './AnnotationCanvas';
 
-const PAGE_GAP = 16;
-const PAGE_WIDTH = 800;
+const PAGE_GAP = 12;
 
 interface Props {
   proxy: PDFDocumentProxy;
@@ -13,21 +12,21 @@ interface Props {
   strokes: Stroke[];
   tool: ToolConfig;
   interactionMode: 'draw' | 'navigate';
-  isPinching: React.MutableRefObject<{ current: boolean }>;
+  isPinchingRef: React.MutableRefObject<boolean>;
+  pageWidth: number;
   onStrokeComplete: (stroke: Stroke) => void;
   onEraseAt: (pageIndex: number, x: number, y: number) => void;
 }
 
 export function PageStack({
-  proxy, pageDimensions, strokes, tool, interactionMode, isPinching,
-  onStrokeComplete, onEraseAt,
+  proxy, pageDimensions, strokes, tool, interactionMode, isPinchingRef,
+  pageWidth, onStrokeComplete, onEraseAt,
 }: Props) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: PAGE_GAP, padding: PAGE_GAP }}>
       {pageDimensions.map((dim, i) => {
-        const scale = PAGE_WIDTH / dim.width;
-        const w = PAGE_WIDTH;
-        const h = Math.round(dim.height * scale);
+        const w = pageWidth;
+        const h = Math.round(dim.height * (pageWidth / dim.width));
         return (
           <div
             key={i}
@@ -49,7 +48,7 @@ export function PageStack({
               height={h}
               tool={tool}
               interactionMode={interactionMode}
-              isPinching={isPinching}
+              isPinchingRef={isPinchingRef}
               strokes={strokes}
               onStrokeComplete={onStrokeComplete}
               onEraseAt={(x, y) => onEraseAt(i, x, y)}
