@@ -1,0 +1,126 @@
+.file-loader {
+  min-height: 100vh;
+  min-height: 100svh;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: env(safe-area-inset-top, 20px) 24px env(safe-area-inset-bottom, 20px);
+  color: #fff;
+  font-family: -apple-system, sans-serif;
+}
+
+.file-loader__hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 60px;
+  width: 100%;
+  max-width: 480px;
+}
+
+.file-loader__logo {
+  font-size: 2rem;
+  font-weight: 700;
+  background: linear-gradient(90deg, #f97316, #f59e0b, #ec4899);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.5px;
+}
+
+.file-loader__sub {
+  color: rgba(255,255,255,0.6);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.file-loader__drop {
+  margin-top: 16px;
+  width: 100%;
+  border: 2px dashed rgba(249,115,22,0.5);
+  border-radius: 20px;
+  padding: 40px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  font-size: 1rem;
+  color: rgba(255,255,255,0.85);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.file-loader__drop:active,
+.file-loader__drop--active {
+  border-color: #f97316;
+  background: rgba(249,115,22,0.08);
+}
+
+.file-loader__drop-icon {
+  font-size: 2.5rem;
+}
+
+.file-loader__drop-hint {
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.4);
+}
+
+.file-loader__recent {
+  margin-top: 40px;
+  width: 100%;
+  max-width: 480px;
+}
+
+.file-loader__recent h2 {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgba(255,255,255,0.4);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0 0 12px;
+}
+
+.file-loader__recent ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.file-loader__recent li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.06);
+  cursor: pointer;
+  transition: background 0.15s;
+  min-height: 52px;
+}
+
+.file-loader__recent li:active {
+  background: rgba(249,115,22,0.15);
+}
+
+.file-loader__recent-icon { font-size: 1.2rem; }
+
+.file-loader__recent-name {
+  flex: 1;
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-loader__recent-date {
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.4);
+  flex-shrink: 0;
+}

@@ -1,0 +1,96 @@
+.smd__overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 24px;
+}
+
+.smd__card {
+  background: rgba(22,22,42,0.98);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 20px;
+  padding: 28px 24px 20px;
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-family: -apple-system, sans-serif;
+}
+
+.smd__title {
+  color: #fff;
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0 0 2px;
+}
+
+.smd__file {
+  color: rgba(255,255,255,0.4);
+  font-size: 0.78rem;
+  margin: 0 0 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.smd__btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.06);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+  -webkit-tap-highlight-color: transparent;
+}
+.smd__btn:active {
+  background: rgba(255,255,255,0.12);
+}
+.smd__btn--primary {
+  border-color: rgba(249,115,22,0.5);
+  background: rgba(249,115,22,0.12);
+}
+.smd__btn--primary:active {
+  background: rgba(249,115,22,0.25);
+}
+
+.smd__btn-label {
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.smd__btn-hint {
+  color: rgba(255,255,255,0.4);
+  font-size: 0.75rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.smd__cancel {
+  margin-top: 4px;
+  padding: 10px;
+  border: none;
+  background: transparent;
+  color: rgba(255,255,255,0.4);
+  font-size: 0.9rem;
+  cursor: pointer;
+  border-radius: 10px;
+  transition: color 0.12s;
+  -webkit-tap-highlight-color: transparent;
+}
+.smd__cancel:active {
+  color: rgba(255,255,255,0.7);
+}
