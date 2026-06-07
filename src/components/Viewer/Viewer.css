@@ -1,0 +1,32 @@
+.viewer {
+  position: fixed;
+  inset: 0;
+  background: #111827;
+  overflow: hidden;
+}
+
+.viewer__canvas-area {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.viewer__transform {
+  will-change: transform;
+  display: inline-block;
+}
+
+.viewer__filename {
+  position: fixed;
+  top: env(safe-area-inset-top, 12px);
+  left: 12px;
+  color: rgba(255,255,255,0.5);
+  font-size: 0.75rem;
+  font-family: -apple-system, sans-serif;
+  pointer-events: none;
+  max-width: 60vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
