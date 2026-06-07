@@ -23,7 +23,6 @@ const DEFAULT_TOOL: ToolConfig = {
 };
 
 function getPageWidth() {
-  // Fit page to viewport width with padding, max 800px
   return Math.min(window.innerWidth - 24, 800);
 }
 
@@ -33,13 +32,16 @@ export function Viewer({ pdfState, onClose }: Props) {
   const [saveStatus, setSaveStatus] = useState<'saved' | 'dirty' | 'saving'>('saved');
   const [transform, setTransform] = useState<ViewTransform>({ scale: 1, translateX: 0, translateY: 0 });
   const [pageWidth, setPageWidth] = useState(getPageWidth);
+  // renderScale is debounced: only updates 600ms after zoom stops
+  // This triggers high-quality re-render of vector PDF content at the new zoom level
+  const [renderScale, setRenderScale] = useState(1);
   const transformRef = useRef(transform);
   transformRef.current = transform;
 
   const annotations = useAnnotations();
   const versionRef = useRef(0);
 
-  // Responsive page width on resize/orientation change
+  // Responsive page width
   useEffect(() => {
     const onResize = () => setPageWidth(getPageWidth());
     window.addEventListener('resize', onResize);
@@ -50,7 +52,13 @@ export function Viewer({ pdfState, onClose }: Props) {
     };
   }, []);
 
-  // Load saved annotations on mount
+  // Debounce render scale: re-render PDF at higher resolution after zoom settles
+  useEffect(() => {
+    const t = setTimeout(() => setRenderScale(transform.scale), 600);
+    return () => clearTimeout(t);
+  }, [transform.scale]);
+
+  // Load saved annotations
   useEffect(() => {
     if (!pdfState.hash) return;
     loadAnnotations(pdfState.hash).then(saved => {
@@ -75,14 +83,11 @@ export function Viewer({ pdfState, onClose }: Props) {
 
   const getTransform = useCallback(() => transformRef.current, []);
   const { onPointerDown, onPointerMove, onPointerUp, isPinchingRef } = useGestures(
-    getTransform,
-    setTransform,
-    interactionMode,
+    getTransform, setTransform, interactionMode,
   );
 
   const handleEraseAt = useCallback((pageIndex: number, x: number, y: number) => {
-    const radius = tool.thickness * 3;
-    annotations.eraseAt(pageIndex, x, y, radius);
+    annotations.eraseAt(pageIndex, x, y, tool.thickness * 3);
   }, [annotations, tool.thickness]);
 
   const handleExport = useCallback(async () => {
@@ -98,7 +103,6 @@ export function Viewer({ pdfState, onClose }: Props) {
 
   return (
     <div className="viewer">
-      {/* Gesture + drawing area — gesture handlers always active */}
       <div
         className="viewer__canvas-area"
         onPointerDown={onPointerDown}
@@ -122,6 +126,7 @@ export function Viewer({ pdfState, onClose }: Props) {
               interactionMode={interactionMode}
               isPinchingRef={isPinchingRef}
               pageWidth={pageWidth}
+              renderScale={renderScale}
               onStrokeComplete={(s: Stroke) => annotations.addStroke(s)}
               onEraseAt={handleEraseAt}
             />

@@ -1,9 +1,9 @@
-import { useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { useEffect, useRef, useCallback, forwardRef, useImperativeHandle, useState } from 'react';
 import { getStroke } from 'perfect-freehand';
 import type { Stroke, ToolConfig, RawPoint } from '../../types/annotation';
 
 export interface AnnotationCanvasHandle {
-  redraw: (strokes: Stroke[]) => void;
+  redraw: () => void;
 }
 
 interface Props {
@@ -15,13 +15,15 @@ interface Props {
   isPinchingRef: React.MutableRefObject<boolean>;
   onStrokeComplete: (stroke: Stroke) => void;
   onEraseAt: (x: number, y: number) => void;
-  strokes: Stroke[];
+  // Only strokes for this page — filtered by parent for performance
+  pageStrokes: Stroke[];
 }
 
-function getOutlineOptions(tool: ToolConfig) {
+function getOutlineOptions(tool: ToolConfig, dpr: number) {
   const isHighlighter = tool.tool === 'highlighter';
+  const size = (isHighlighter ? tool.thickness * 3 : tool.thickness) * dpr;
   return {
-    size: isHighlighter ? tool.thickness * 3 : tool.thickness,
+    size,
     thinning: isHighlighter ? 0 : tool.tool === 'pencil' ? 0.3 : 0.5,
     smoothing: 0.5,
     streamline: 0.5,
@@ -30,10 +32,10 @@ function getOutlineOptions(tool: ToolConfig) {
 }
 
 function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke, dpr: number) {
-  const opts = getOutlineOptions(stroke);
+  const opts = getOutlineOptions(stroke, dpr);
   const outline = getStroke(
     stroke.points.map(p => [p.x * dpr, p.y * dpr, p.pressure]),
-    { ...opts, size: opts.size * dpr },
+    opts,
   );
   if (outline.length === 0) return;
 
@@ -53,34 +55,51 @@ function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke, dpr: number) 
 }
 
 export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
-  ({ pageIndex, width, height, tool, interactionMode, isPinchingRef, onStrokeComplete, onEraseAt, strokes }, ref) => {
+  ({ pageIndex, width, height, tool, interactionMode, isPinchingRef,
+     onStrokeComplete, onEraseAt, pageStrokes }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const drawingRef = useRef(false);
     const currentPointsRef = useRef<RawPoint[]>([]);
     const hasStylusRef = useRef(false);
+    const [isVisible, setIsVisible] = useState(false);
     const dpr = window.devicePixelRatio || 1;
 
-    const redraw = useCallback((strokeList: Stroke[]) => {
+    // Lazy: skip expensive redraws when page is off-screen
+    useEffect(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const observer = new IntersectionObserver(
+        ([entry]) => setIsVisible(entry.isIntersecting),
+        { rootMargin: '600px' },
+      );
+      observer.observe(canvas);
+      return () => observer.disconnect();
+    }, []);
+
+    const redraw = useCallback(() => {
       const canvas = canvasRef.current;
       if (!canvas) return;
       const ctx = canvas.getContext('2d')!;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      for (const s of strokeList) {
-        if (s.pageIndex === pageIndex) {
-          drawStroke(ctx, s, dpr);
-        }
+      for (const s of pageStrokes) {
+        drawStroke(ctx, s, dpr);
       }
-    }, [pageIndex, dpr]);
+    }, [pageStrokes, dpr]);
 
     useImperativeHandle(ref, () => ({ redraw }), [redraw]);
 
+    // Initialize canvas size once
     useEffect(() => {
       const canvas = canvasRef.current;
       if (!canvas) return;
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
-      redraw(strokes);
-    }, [width, height, dpr, redraw, strokes]);
+    }, [width, height, dpr]);
+
+    // Redraw when strokes change — but only if visible
+    useEffect(() => {
+      if (isVisible) redraw();
+    }, [isVisible, pageStrokes, redraw]);
 
     const getPageCoords = useCallback((e: React.PointerEvent): RawPoint => {
       const canvas = canvasRef.current!;
@@ -95,13 +114,9 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
     const isStylusPointer = (e: React.PointerEvent) => (e.pointerType as string) === 'stylus';
 
     const shouldDraw = useCallback((e: React.PointerEvent) => {
-      // Stylus always draws
       if (isStylusPointer(e)) return true;
-      // Touch only draws in draw mode (not navigate)
       if (e.pointerType === 'touch' && interactionMode === 'draw') {
-        // Reject if 2-finger pinch is active
         if (isPinchingRef.current) return false;
-        // Palm rejection: ignore touch if stylus is active
         if (hasStylusRef.current) return false;
         return true;
       }
@@ -111,81 +126,58 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
     const onPointerDown = useCallback((e: React.PointerEvent) => {
       if (isStylusPointer(e)) hasStylusRef.current = true;
       if (!shouldDraw(e)) return;
-
       e.preventDefault();
       e.currentTarget.setPointerCapture(e.pointerId);
       drawingRef.current = true;
       const pt = getPageCoords(e);
       currentPointsRef.current = [pt];
-
-      if (tool.tool === 'eraser') {
-        onEraseAt(pt.x, pt.y);
-      }
+      if (tool.tool === 'eraser') onEraseAt(pt.x, pt.y);
     }, [tool, shouldDraw, getPageCoords, onEraseAt]);
 
     const onPointerMove = useCallback((e: React.PointerEvent) => {
       if (!drawingRef.current) return;
-      // Cancel if pinch started mid-stroke
       if (isPinchingRef.current && !isStylusPointer(e)) {
         drawingRef.current = false;
         currentPointsRef.current = [];
-        redraw(strokes);
+        redraw();
         return;
       }
       e.preventDefault();
-
       const pt = getPageCoords(e);
       currentPointsRef.current.push(pt);
 
-      if (tool.tool === 'eraser') {
-        onEraseAt(pt.x, pt.y);
-        return;
-      }
+      if (tool.tool === 'eraser') { onEraseAt(pt.x, pt.y); return; }
 
       const canvas = canvasRef.current;
       if (!canvas) return;
       const ctx = canvas.getContext('2d')!;
-
-      redraw(strokes);
-
+      redraw();
+      // Draw preview stroke on top
       const previewStroke: Stroke = {
-        id: 'preview',
-        pageIndex,
+        id: 'preview', pageIndex,
         points: currentPointsRef.current,
-        tool: tool.tool,
-        color: tool.color,
-        thickness: tool.thickness,
-        opacity: tool.opacity,
+        tool: tool.tool, color: tool.color,
+        thickness: tool.thickness, opacity: tool.opacity,
         timestamp: 0,
       };
       drawStroke(ctx, previewStroke, dpr);
-    }, [tool, pageIndex, getPageCoords, redraw, strokes, onEraseAt, dpr, isPinchingRef]);
+    }, [tool, pageIndex, getPageCoords, redraw, onEraseAt, dpr, isPinchingRef]);
 
     const onPointerUp = useCallback((e: React.PointerEvent) => {
-      if (isStylusPointer(e)) {
-        setTimeout(() => { hasStylusRef.current = false; }, 300);
-      }
+      if (isStylusPointer(e)) setTimeout(() => { hasStylusRef.current = false; }, 300);
       if (!drawingRef.current) return;
       drawingRef.current = false;
 
-      if (tool.tool === 'eraser') {
-        currentPointsRef.current = [];
-        return;
-      }
+      if (tool.tool === 'eraser') { currentPointsRef.current = []; return; }
 
       const points = currentPointsRef.current;
       currentPointsRef.current = [];
-
       if (points.length < 1) return;
 
       onStrokeComplete({
-        id: crypto.randomUUID(),
-        pageIndex,
-        points,
-        tool: tool.tool,
-        color: tool.color,
-        thickness: tool.thickness,
-        opacity: tool.opacity,
+        id: crypto.randomUUID(), pageIndex, points,
+        tool: tool.tool, color: tool.color,
+        thickness: tool.thickness, opacity: tool.opacity,
         timestamp: Date.now(),
       });
     }, [tool, pageIndex, onStrokeComplete]);
@@ -194,12 +186,8 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
       <canvas
         ref={canvasRef}
         style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width,
-          height,
-          display: 'block',
+          position: 'absolute', top: 0, left: 0,
+          width, height, display: 'block',
           touchAction: 'none',
           cursor: tool.tool === 'eraser' ? 'cell' : 'crosshair',
         }}

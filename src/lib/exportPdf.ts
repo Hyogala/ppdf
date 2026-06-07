@@ -23,21 +23,61 @@ function outlineToSvgPath(points: number[][], pdfHeight: number): string {
   return d.join(' ');
 }
 
+async function saveBlob(blob: Blob, suggestedName: string): Promise<void> {
+  // 1. File System Access API (desktop Chrome/Edge — user picks save location)
+  if ('showSaveFilePicker' in window) {
+    try {
+      const handle = await (window as Window & { showSaveFilePicker: (opts: unknown) => Promise<FileSystemFileHandle> })
+        .showSaveFilePicker({
+          suggestedName,
+          types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }],
+        });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return;
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return; // user cancelled
+      // fall through to next method
+    }
+  }
+
+  // 2. Web Share API with files (iOS Safari — opens share sheet → "ファイルに保存" etc.)
+  if ('share' in navigator) {
+    const file = new File([blob], suggestedName, { type: 'application/pdf' });
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file], title: suggestedName });
+      return;
+    }
+  }
+
+  // 3. Fallback: trigger download (browser chooses Downloads folder)
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = suggestedName;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
 export async function exportAnnotatedPdf(
   originalBytes: ArrayBuffer,
   strokes: Stroke[],
   fileName: string,
 ): Promise<void> {
-  const pdfDoc = await PDFDocument.load(originalBytes);
+  // Load in chunks to avoid blocking main thread on large files
+  const pdfDoc = await PDFDocument.load(originalBytes, {
+    updateMetadata: false,
+  });
   const pages = pdfDoc.getPages();
 
   for (const stroke of strokes) {
     const page = pages[stroke.pageIndex];
     if (!page) continue;
 
-    const { width: _w, height: pdfH } = page.getSize();
-
+    const { height: pdfH } = page.getSize();
     const isHighlighter = stroke.tool === 'highlighter';
+
     const outlinePoints = getStroke(
       stroke.points.map(p => [p.x, p.y, p.pressure]),
       {
@@ -62,10 +102,7 @@ export async function exportAnnotatedPdf(
 
   const pdfBytes = await pdfDoc.save();
   const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fileName.replace(/\.pdf$/i, '') + '_annotated.pdf';
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  const suggestedName = fileName.replace(/\.pdf$/i, '') + '_annotated.pdf';
+
+  await saveBlob(blob, suggestedName);
 }
